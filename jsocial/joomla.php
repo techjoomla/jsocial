@@ -34,6 +34,7 @@ class JSocialJoomla implements JSocial
 	var $gravatar_secure = false;
 	
 	public function __construct() {
+		require_once JPATH_SITE . '/components/com_users/helpers/route.php';
 	}
 
 	public function getProfileData(JUser $user) {
@@ -56,7 +57,7 @@ class JSocialJoomla implements JSocial
 	public function setStatus(JUser $user, $status, $options=array()) {}
 	
 	public function getRegistrationLink($options=array()) {
-		return JRoute::_('index.php?option=com_users&view=registration&Itemid=');
+		return JRoute::_('index.php?option=com_users&view=registration&Itemid='.UsersHelperRoute::getRegistrationRoute());
 	}
 	
 	public function sendMessage(JUser $user, $recepient) {}
