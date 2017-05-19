@@ -9,18 +9,16 @@
  */
 
 defined('JPATH_BASE') or die;
-jimport('joomla.filesystem.folder');
-
-require_once JPATH_ROOT . '/libraries/techjoomla/jsocial/helper.php';
+jimport('joomla.filesystem.file');
 
 /**
  * Interface to handle Social Extensions
  *
- * @package     Techjoomla.Libraries
+ * @package     Joomla.Libraries
  * @subpackage  JSocial
- * @since       1.0.4
+ * @since       3.1
  */
-class JSocialCB implements JSocial
+class JSocialJomwall implements JSocial
 {
 	/**
 	 * The constructor
@@ -31,7 +29,7 @@ class JSocialCB implements JSocial
 	{
 		if (!$this->checkExists())
 		{
-			throw new Exception('Community Builder is not Installed');
+			throw new Exception('Jomwall is not Installed');
 		}
 	}
 
@@ -55,14 +53,13 @@ class JSocialCB implements JSocial
 	 *
 	 * @return  STRING
 	 *
-	 * @since   1.0.4
+	 * @since   1.0
 	 */
 	public function getProfileUrl(JUser $user)
 	{
-		$link = 'com_comprofiler&view=userprofile';
-		$itemid = JSocialHelper::getItemId($link);
-
-		return $link = JRoute::_('index.php?option=com_comprofiler&task=userprofile&user=' . $user->id . '&Itemid=' . $itemid, 0, -1);
+		$awduser = new AwdwallHelperUser;
+		$Itemid = $awduser->getComItemId();
+		$link = JRoute::_('index.php?option=com_awdwall&view=awdwall&layout=mywall&wuid=' . $user->id . '&Itemid=' . $Itemid);
 	}
 
 	/**
@@ -78,35 +75,8 @@ class JSocialCB implements JSocial
 	 */
 	public function getAvatar(JUser $user, $gravatar_size = '')
 	{
-		$db = JFactory::getDbo();
-		$q = "SELECT a.id,a.username,a.name, b.avatar, b.avatarapproved
-            FROM #__users a, #__comprofiler b
-            WHERE a.id=b.user_id AND a.id=" . $user->id;
-		$db->setQuery($q);
-		$cbuser = $db->loadObject();
-		$img_path = JUri::root() . "images/comprofiler";
-
-		if (isset($cbuser->avatar) && isset($cbuser->avatarapproved))
-		{
-			if (substr_count($cbuser->avatar, "/") == 0)
-			{
-				$uimage = $img_path . '/tn' . $cbuser->avatar;
-			}
-			else
-			{
-				$uimage = $img_path . '/' . $cbuser->avatar;
-			}
-		}
-		elseif (isset($cbuser->avatar))
-		{
-			// Avatar not approved
-			$uimage = JUri::root() . "components/com_comprofiler/plugin/templates/default/images/avatar/nophoto_n.png";
-		}
-		else
-		{
-			// No avatar
-			$uimage = JUri::root() . "components/com_comprofiler/plugin/templates/default/images/avatar/nophoto_n.png";
-		}
+		$awduser = new AwdwallHelperUser;
+		$uimage = $awduser->getAvatar($user->id);
 
 		return $uimage;
 	}
@@ -116,8 +86,8 @@ class JSocialCB implements JSocial
 	 *
 	 * @param   MIXED  $user      JUser Objcet
 	 * @param   INT    $accepted  Optional param, bydefault true to get only friends with request accepted
-	 * @param   INT    $options   Optional array.. Extra options to pass to the getFriends Query :
-	 * state, limit and idonly(if idonly only ids array will be returned) are supported
+	 * @param   INT    $options   Optional array.. Extra options to pass to the getFriends Query
+	 *  : state, limit and idonly(if idonly only ids array will be returned) are supported
 	 *
 	 * @return  Friends objects
 	 *
@@ -139,32 +109,6 @@ class JSocialCB implements JSocial
 	 */
 	public function addFriend(JUser $connect_from_user, JUser $connect_to_user)
 	{
-		$db = JFactory::getDbo();
-
-		// Set frnd cnt to 1 make inviter and invitee friends
-		$sql			= "SELECT * FROM #__comprofiler_members
-							WHERE referenceid=" . $connect_from_user->id . " AND memberid  = " . $connect_to_user->id;
-		$db->setQuery($sql);
-		$once_done = $db->loadResult();
-
-		if (!$once_done)
-		{
-			$insertfrnd = new stdClass;
-			$insertfrnd->referenceid		=	$connect_to_user->id;
-			$insertfrnd->memberid 			=	$connect_from_user->id;
-			$insertfrnd->accepted 			=	1;
-			$insertfrnd->pending			=	0;
-			$insertfrnd->membersince		=	$dt;
-			$db->insertObject('#__comprofiler_members', $insertfrnd);
-
-			$insertfrnds = new stdClass;
-			$insertfrnds->referenceid		=	$connect_from_user->id;
-			$insertfrnds->memberid 			=	$connect_to_user->id;
-			$insertfrnds->accepted			=	1;
-			$insertfrnds->pending			=	0;
-			$insertfrnds->membersince		=	$dt;
-			$db->insertObject('#__comprofiler_members', $insertfrnds);
-		}
 	}
 
 	/**
@@ -193,63 +137,22 @@ class JSocialCB implements JSocial
 	 *
 	 * @since  1.0
 	 */
-	public function pushActivity($actor_id, $act_type, $act_subtype = '', $act_description = '',$act_link = '', $act_title='', $act_access='')
+	public function pushActivity($actor_id, $act_type, $act_subtype='', $act_description='', $act_link='', $act_title='', $act_access='')
 	{
-		//  Load CB framework
-		global $_CB_framework, $mainframe;
-
-		if (defined('JPATH_ADMINISTRATOR'))
+		/* Load jomwall core*/
+		if (!class_exists('AwdwallHelperUser'))
 		{
-			if (!file_exists(JPATH_ADMINISTRATOR . '/components/com_comprofiler/plugin.foundation.php'))
-			{
-				echo 'CB not installed!';
-
-				return false;
-			}
-
-			include_once JPATH_ADMINISTRATOR . '/components/com_comprofiler/plugin.foundation.php';
-		}
-		else
-		{
-			if (!file_exists($mainframe->getCfg('absolute_path') . '/administrator/components/com_comprofiler/plugin.foundation.php'))
-			{
-				echo 'CB not installed!';
-
-				return false;
-			}
-
-			include_once $mainframe->getCfg('absolute_path') . '/administrator/components/com_comprofiler/plugin.foundation.php';
+			require_once JPATH_SITE . '/components/com_awdwall/helpers/user.php';
 		}
 
-		cbimport('cb.plugins');
-		cbimport('cb.html');
-		cbimport('cb.database');
-		cbimport('language.front');
-		cbimport('cb.snoopy');
-		cbimport('cb.imgtoolbox');
-
-		global $_CB_framework, $_CB_database, $ueConfig;
-
-		// Load cb activity plugin class
-		if (!file_exists(JPATH_SITE . "/components/com_comprofiler/plugin/user/plug_cbactivity/cbactivity.class.php"))
-		{
-			// Eecho 'CB Activity plugin not installed!';
-			return false;
-		}
-
-		require_once JPATH_SITE . "/components/com_comprofiler/plugin/user/plug_cbactivity/cbactivity.class.php";
-
-		// Push activity
 		$linkHTML = '<a href="' . $act_link . '">' . $act_title . '</a>';
+		$comment = $act_description . ' ' . $linkHTML;
+		$attachment = $act_link;
+		$type = 'text';
+		$imgpath = null;
+		$params = array();
 
-		$activity = new cbactivityActivity($_CB_database);
-		$activity->set('user_id', $actor_id);
-		$activity->set('type', $act_type);
-		$activity->set('subtype', $act_subtype);
-		$activity->set('title', $act_description . ' ' . $linkHTML);
-		$activity->set('icon', 'nameplate');
-		$activity->set('date', cbactivityClass::getUTCDate());
-		$activity->store();
+		AwdwallHelperUser::addtostream($comment, $attachment, $type, $actor_id, $imgpath, $params);
 
 		return true;
 	}
@@ -318,7 +221,22 @@ class JSocialCB implements JSocial
 	 */
 	public function checkExists()
 	{
-		return JFolder::exists(JPATH_SITE . '/components/com_comprofiler');
+		return JFile::exists(JPATH_SITE . '/components/com_awdwall/helpers/user.php');
+	}
+
+	/**
+	 * The function add points to user
+	 *
+	 * @param   MIXED  $receiver  User to whom points to be added
+	 * @param   ARRAY  $options   is array
+	 *
+	 * $options[command] for example invites sent
+	 * options[extension] for example com_invitex
+	 *
+	 * @return ARRAY success 0 or 1
+	 */
+	public function addpoints(JUser $receiver,$options=array())
+	{
 	}
 
 	/**
@@ -335,21 +253,6 @@ class JSocialCB implements JSocial
 	 * @since  1.0
 	 */
 	public function sendNotification(JUser $sender, JUser $receiver, $content = "JS Notification", $options = array(), $emailOptions = false)
-	{
-	}
-
-	/**
-	 * The function add points to user
-	 *
-	 * @param   MIXED  $receiver  User to whom points to be added
-	 * @param   ARRAY  $options   is array
-	 *
-	 * $options[command] for example invites sent
-	 * options[extension] for example com_invitex
-	 *
-	 * @return ARRAY success 0 or 1
-	 */
-	public function addpoints(JUser $receiver, $options=array())
 	{
 	}
 
